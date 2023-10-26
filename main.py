@@ -2,6 +2,7 @@ import argparse
 import glob
 import os
 import time
+import sys
 
 import torch
 import torch.nn.functional as F
@@ -9,6 +10,40 @@ from models import Model
 from torch.utils.data import random_split
 from torch_geometric.data import DataLoader
 from torch_geometric.datasets import TUDataset
+import torch_geometric.utils 
+
+import networkx as nx
+import tqdm
+
+sys.path.append('/Users/scinawa/workspace/grouptheoretical/new-experiments/multi-orbit-bispectrum')
+from spectrum_utils import * 
+from utils import *
+
+
+def redo_dataset(dataset, correlation):
+
+    skew_spectrums = []
+    graphs = []
+
+    for i, current_g in enumerate(dataset):
+
+        nxgraph = nx.to_numpy_array(torch_geometric.utils.to_networkx(current_g) )
+
+        #graphs.append(nxgraph)
+
+        func_1o = create_func_on_group_from_matrix_1orbit(nxgraph)
+        #func_2o = create_func_on_group_from_matrix_2orbits(np.array(graph))
+
+        #skew_spectrums.append(
+        dataset[i].skew=reduced_k_correlation(func_1o, k=correlation, method="extremedyn", vector=True)
+
+    return dataset       
+    #return (graphs, skew_spectrums)
+
+
+    
+
+
 
 parser = argparse.ArgumentParser()
 
@@ -24,7 +59,8 @@ parser.add_argument('--pooling_ratio', type=float, default=0.5, help='pooling ra
 parser.add_argument('--dropout_ratio', type=float, default=0.0, help='dropout ratio')
 parser.add_argument('--lamb', type=float, default=1.0, help='trade-off parameter')
 parser.add_argument('--dataset', type=str, default='PROTEINS', help='DD/PROTEINS/NCI1/NCI109/Mutagenicity/ENZYMES')
-parser.add_argument('--device', type=str, default='cuda:0', help='specify cuda devices')
+parser.add_argument('--device', type=str, default='cpu:0', help='specify cuda devices')
+parser.add_argument('--correlation', type=int, default=2, help='which of the k-correlations do we want to use')
 parser.add_argument('--epochs', type=int, default=1000, help='maximum number of epochs')
 parser.add_argument('--patience', type=int, default=100, help='patience for early stopping')
 
@@ -35,10 +71,18 @@ if torch.cuda.is_available():
 
 dataset = TUDataset(os.path.join('data', args.dataset), name=args.dataset, use_node_attr=True)
 
+# import IPython
+# IPython.embed()
+
 args.num_classes = dataset.num_classes
 args.num_features = dataset.num_features
 
-print(args)
+print("before {}".format(args.num_features))
+dataset = redo_dataset(dataset, 2)
+print("after {}".format(args.num_features))
+
+
+
 
 num_training = int(len(dataset) * 0.8)
 num_val = int(len(dataset) * 0.1)
